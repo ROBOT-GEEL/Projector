@@ -1,0 +1,46 @@
+.env# AI modelbestanden
+*.pt
+*.pth
+*.onnx
+*.engine
+*.trt
+*.weights
+*.bin
+*.h5
+*.tflite
+*.npz
+*.npy
+
+# Virtuele omgevingen
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Build & logs
+build/
+dist/
+*.log
+*.cache/
+
+# Jetson / TensorRT output
+*.plan
+*.engine
+
+# Editor folders
+.vscode/
+.idea/
+
+# Output folders
+runs/
+output/
+results/
