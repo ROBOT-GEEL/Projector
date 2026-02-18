@@ -2,13 +2,25 @@ from flask import Flask, send_file, request, jsonify # type: ignore
 import time
 import cv2
 import json
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load the .env file
+SCRIPT_DIR = Path(__file__).resolve().parent
+env_path = SCRIPT_DIR.parent / '.env'
+load_dotenv(dotenv_path=env_path)
 
 app = Flask(__name__)
+
+# Get the port from the .env file
+PORT = int(os.getenv('ZONE_CONFIG_PORT', 5051))
 
 FILE_NAME = "zone_image.jpg"
 
 @app.route('/take_picture')
 def take_picture():
+
     # Define the 4K resolution
     WIDTH_4K = 3840
     HEIGHT_4K = 2160
@@ -30,6 +42,8 @@ def take_picture():
     if not ret:
         print("ERROR: could not fetch the frame, exiting...")
         exit()
+
+    cap.release()
 
     status = cv2.imwrite(FILE_NAME, frame)
 
@@ -58,5 +72,6 @@ def save_zones():
     
 
 if __name__ == '__main__':
-    # Listen on port 5000
-    app.run(host='0.0.0.0', port=5000)
+    # Listen on port defined in .env
+    print(f"Server gestart op poort {PORT}")
+    app.run(host='0.0.0.0', port=PORT)

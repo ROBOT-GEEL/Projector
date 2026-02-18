@@ -1,20 +1,28 @@
 import socket
 import hashlib
+import os
 from time import sleep
+from pathlib import Path
+from dotenv import load_dotenv
 
 # ========================
 # Projector Configuration
 # ========================
-PROJECTOR_IP = "192.168.138.100"
-PROJECTOR_PORT = 4352  # PJLink default port
-PJLINK_PASSWORD = "1234"  # Set your PJLink password here
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+env_path = SCRIPT_DIR.parent / '.env'
+load_dotenv(dotenv_path=env_path)
+
+PROJECTOR_IP = os.getenv('PROJECTOR_IP', "192.168.138.100")
+PROJECTOR_PORT = int(os.getenv('PROJECTOR_PORT', 4352))
+PJLINK_PASSWORD = os.getenv('PJLINK_PASSWORD')
 
 # ========================
 # Command Listener Config
 # ========================
-LISTEN_HOST = "0.0.0.0"   # Listen on all interfaces
-LISTEN_PORT = 5050        # Port where this script listens for commands
 
+LISTEN_IP = "0.0.0.0" 
+LISTEN_PORT = int(os.getenv('LISTEN_PORT', 5050))
 
 # ========================
 # Function: Send PJLink Command
@@ -22,8 +30,6 @@ LISTEN_PORT = 5050        # Port where this script listens for commands
 def send_pjlink_command(command, password=PJLINK_PASSWORD):
     """
     Sends a PJLink command to the projector.
-    PJLink requires a %1 prefix and ends with \r.
-    Handles authentication if required.
     """
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -34,14 +40,17 @@ def send_pjlink_command(command, password=PJLINK_PASSWORD):
             banner = s.recv(1024).decode()
 
             if "PJLINK" in banner:
-                # Check if authentication is required
+                # Check if authentication is required (PJLINK 1 indicates auth)
                 auth_required = banner.startswith("PJLINK 1")
 
                 if auth_required and password:
-                    # Extract random number from banner
-                    rand = banner.split(" ")[2].strip()
-                    key = hashlib.md5((rand + password).encode()).hexdigest()
-                    command = f"{key}{command}"
+                    # Extract random number (nonce) from banner for MD5 hash
+                    try:
+                        rand = banner.split(" ")[2].strip()
+                        key = hashlib.md5((rand + password).encode()).hexdigest()
+                        command = f"{key}{command}"
+                    except IndexError:
+                        print("Warning: Could not parse auth nonce from banner.")
 
             # Send the command
             s.sendall(command.encode())
@@ -49,7 +58,7 @@ def send_pjlink_command(command, password=PJLINK_PASSWORD):
 
             # Receive and print response
             response = s.recv(1024).decode()
-            print(f"Response: {response}")
+            print(f"Projector Response: {response.strip()}")
 
     except Exception as e:
         print(f"Error sending PJLink command: {e}")
@@ -60,7 +69,7 @@ def send_pjlink_command(command, password=PJLINK_PASSWORD):
 # ========================
 def handle_command(cmd):
     """
-    Takes a received command string and sends the matching PJLink command.
+    Matches received text to PJLink commands.
     """
     cmd = cmd.strip().upper()
 
@@ -89,11 +98,12 @@ def handle_command(cmd):
 # ========================
 def start_command_listener():
     """
-    Listens on LISTEN_PORT for incoming text commands like PROJECTORON, PROJECTOROFF, etc.
+    Listens for incoming TCP commands.
     """
-    print(f"Listening for commands on {LISTEN_HOST}:{LISTEN_PORT}...")
+    print(f"Listening for commands on {LISTEN_IP}:{LISTEN_PORT}...")
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-        server_socket.bind((LISTEN_HOST, LISTEN_PORT))
+        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server_socket.bind((LISTEN_IP, LISTEN_PORT))
         server_socket.listen(5)
 
         while True:
@@ -118,6 +128,5 @@ def start_command_listener():
 # ========================
 if __name__ == "__main__":
     print("=== Projector Command Listener Started ===")
+    print(f"Target Projector: {PROJECTOR_IP}:{PROJECTOR_PORT}")
     start_command_listener()
-
-
