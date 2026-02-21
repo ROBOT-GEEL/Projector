@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="nl" translate="no"> 
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate"> <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kiosk Master</title>
+    <style>
+        /* Zorg dat alles het volledige scherm vult en zwart is als basis */
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            overflow: hidden; background: #121212; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        }
+
+        /* Het iFrame staat standaard verborgen */
+        iframe { 
+            width: 100%; height: 100%; border: none; 
+            display: none; background: white; 
+        }
+
+        /* Het foutscherm / laadscherm */
+        #status-screen { 
+            display: flex; flex-direction: column; justify-content: center; 
+            align-items: center; width: 100%; height: 100%; color: white; text-align: center; 
+        }
+
+        h1 { font-size: 2.5em; margin-bottom: 10px; color: #e74c3c; }
+        p { font-size: 1.2em; opacity: 0.8; }
+
+        /* Een simpele draaiende laad-animatie */
+        .loader {
+            border: 5px solid #333;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px; height: 50px;
+            animation: spin 1s linear infinite;
+            margin-top: 30px;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div id="status-screen">
+        <h1 id="status-title">Verbinden...</h1>
+        <p id="status-desc">De Node.js server op het privénetwerk wordt gezocht.</p>
+        <div class="loader"></div>
+    </div>
+
+    <iframe id="main-frame"></iframe>
+
+    <script>
+        // 1. Haal het IP uit de URL hash
+        const serverIp = window.location.hash.substring(1); 
+        const port = "80";
+        
+        const frame = document.getElementById('main-frame');
+        const statusScreen = document.getElementById('status-screen');
+        const statusTitle = document.getElementById('status-title');
+        const statusDesc = document.getElementById('status-desc');
+
+        let isOnline = false;
+
+        // Foutcontrole: IP-adres check
+        if (!serverIp) {
+            statusTitle.innerText = "Configuratiefout";
+            statusDesc.innerText = "Geen IP-adres gevonden in de .env file.";
+            document.querySelector('.loader').style.display = 'none';
+        }
+
+        const SERVER_URL = `http://${serverIp}:${port}/projector`;
+
+        function checkConnection() {
+            if (!serverIp) return;
+
+            // We doen een lichte check (fetch) om te zien of de server reageert
+            fetch(SERVER_URL, { mode: 'no-cors', cache: 'no-store' })
+                .then(() => {
+                    // SERVER IS ONLINE
+                    if (!isOnline) {
+                        console.log("Server gevonden! Laden...");
+                        frame.src = SERVER_URL;
+                        frame.style.display = "block";
+                        statusScreen.style.display = "none";
+                        isOnline = true;
+                    }
+                })
+                .catch(() => {
+                    // SERVER IS OFFLINE
+                    if (isOnline) {
+                        console.log("Verbinding met server verloren.");
+                        frame.style.display = "none";
+                        statusScreen.style.display = "flex";
+                        statusTitle.innerText = "Server onbereikbaar";
+                        isOnline = false;
+                        // Haal src leeg om oude content te dumpen
+                        frame.src = "";
+                    }
+                });
+        }
+
+        // Check elke 3 seconden voor een snelle respons op het privénetwerk
+        setInterval(checkConnection, 3000);
+        
+        // Voer de eerste check direct uit
+        checkConnection();
+    </script>
+</body>
+</html>

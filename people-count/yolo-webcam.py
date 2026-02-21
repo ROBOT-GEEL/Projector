@@ -19,7 +19,7 @@ sio = socketio.Client()
 # CONFIGURATION & CONSTANTS
 # -------------------------------------------------------
 
-CONFIG_FILE = "../zone-configuration/zones_config.json"
+CONFIG_FILE = "/home/projector/Documents/zone-configuration/zones_config.json"
 WARMUP_TIME = 0.05 
 
 # -------------------------------------------------------
