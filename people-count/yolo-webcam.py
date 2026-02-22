@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 import fcntl
 
 # Initialize Socket.IO client
-sio = socketio.Client()
+sio = socketio.Client(reconnection=False)
 
 # -------------------------------------------------------
 # CONFIGURATION & CONSTANTS
@@ -224,12 +224,12 @@ def count_people(timestamp):
 # -------------------------------------------------------
 
 @sio.event
-def connect():
-    print(f'Connected to server at {args.server_url}')
+def connect(): # This is handled by the main loop to print connection status, so we can leave it empty here.
+    pass
 
 @sio.event
 def disconnect():
-    print('Disconnected from server')
+    pass
 
 @sio.event
 def count_people_event(data):
@@ -256,9 +256,9 @@ def count_people_event(data):
 
 if __name__ == '__main__':
     if args.debug:
-        print("\n=== DEBUG MODE ===")
-        print(f"Using server URL: {args.server_url}")
-        count_people(datetime.now())
+        print("\n=== DEBUG MODE ===", flush=True)
+        print(f"Using server URL: {args.server_url}", flush=True)
+        count_people(datetime.now()) # You can safely remove datetime.now() if you remove the parameter
         try:
             os.system(f'xdg-open "{os.path.join(RESULTS_DIR, "result.jpg")}"') 
         except:
@@ -269,28 +269,38 @@ if __name__ == '__main__':
         while True:
             # Only announce the attempt if we aren't already in a silent failure loop
             if is_first_failure:
-                print(f'Attempting to connect to {args.server_url}...')
+                print(f'Attempting to connect to {args.server_url}...', flush=True)
                 
             try:
                 sio.connect(args.server_url)
-                print("Connection successful!")
+                print(f'Connection successful ({args.server_url})', flush=True)
                 
                 # Reset the flag because we are connected. 
-                # If we drop again, we want to log the first failure.
                 is_first_failure = True 
                 
-                sio.wait() # This blocks until the connection drops
+                # Because reconnection=False, this will exit immediately if the server drops
+                sio.wait() 
                 
-                # If sio.wait() finishes cleanly without an exception, it means we disconnected
+                # If we reach this exact line, sio.wait() finished naturally (server dropped)
                 if is_first_failure:
-                    print("Disconnected from server. Retrying...")
-                
+                    print("Disconnected from server. Retrying...", flush=True)
+                    print(f"Network down. Retrying silently every {RETRY_DELAY} seconds...", flush=True)
+                    is_first_failure = False
+                    
             except Exception as e:
-                # Only print the error the first time it drops to avoid night-time log spam
+                # Catch connection failures (e.g., server offline)
                 if is_first_failure:
-                    print(f"Socket connection error: {e}")
-                    print(f"Network down. Retrying silently every {RETRY_DELAY} seconds...")
-                    is_first_failure = False # Silence all future logs until a successful connection
+                    print(f"Socket connection error: {e}", flush=True)
+                    print(f"Network down. Retrying silently every {RETRY_DELAY} seconds...", flush=True)
+                    is_first_failure = False
+                    
+            finally:
+                # CRITICAL: Always forcefully clear the internal client state. 
+                # This prevents zombie threads and "already connected" exceptions on the next loop.
+                try:
+                    sio.disconnect()
+                except:
+                    pass
             
-            # Sleep for exactly 5 seconds every time
+            # Sleep for exactly 5 seconds before looping back up to try again
             time.sleep(RETRY_DELAY)
