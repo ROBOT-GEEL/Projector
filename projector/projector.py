@@ -31,6 +31,7 @@ LISTEN_PORT = int(os.getenv('LISTEN_PORT', 5050))
 def send_pjlink_command(command, password=PJLINK_PASSWORD):
     """
     Sends a PJLink command to the projector with strict error handling.
+    Returns a tuple: (success: bool, message: str)
     """
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -41,7 +42,7 @@ def send_pjlink_command(command, password=PJLINK_PASSWORD):
             raw_banner = s.recv(1024)
             if not raw_banner:
                 print("Error: Projector connected but immediately dropped without sending a banner.")
-                return
+                return False, "ERROR: NO_BANNER_RECEIVED"
             
             # Use errors='replace' in case the projector sends unexpected characters
             banner = raw_banner.decode(errors='replace')
@@ -58,13 +59,15 @@ def send_pjlink_command(command, password=PJLINK_PASSWORD):
                         print("Warning: Could not parse auth nonce from banner. Command may fail.")
                     except Exception as e:
                         print(f"Warning: Authentication hashing error: {e}")
+                elif auth_required and not password:
+                    return False, "ERROR: AUTH_REQUIRED_BUT_NO_PASSWORD_SET"
 
             # 3. Send the command safely
             try:
                 s.sendall(command.encode())
             except Exception as e:
                 print(f"Error: Connection broken while sending command to projector: {e}")
-                return # Exit early if we can't send
+                return False, f"ERROR: SEND_FAILED ({e})"
             
             sleep(0.5)
 
@@ -72,21 +75,41 @@ def send_pjlink_command(command, password=PJLINK_PASSWORD):
             try:
                 raw_response = s.recv(1024)
                 if raw_response:
-                    response = raw_response.decode(errors='replace')
-                    print(f"Projector Response: {response.strip()}")
+                    response = raw_response.decode(errors='replace').strip()
+                    print(f"Projector Response: {response}")
+                    
+                    # Check for standard PJLink error codes returned by the projector
+                    if "ERR1" in response:
+                        return False, "ERROR: PJLINK_ERR1_UNDEFINED_COMMAND"
+                    elif "ERR2" in response:
+                        return False, "ERROR: PJLINK_ERR2_OUT_OF_PARAMETER"
+                    elif "ERR3" in response:
+                        return False, "ERROR: PJLINK_ERR3_UNAVAILABLE_TIME"
+                    elif "ERR4" in response:
+                        return False, "ERROR: PJLINK_ERR4_PROJECTOR_FAILURE"
+                    elif "ERRA" in response:
+                        return False, "ERROR: PJLINK_ERRA_AUTHENTICATION_FAILURE"
+                        
+                    return True, "OK"
                 else:
                     print("Warning: Projector closed connection without sending a response.")
+                    return False, "ERROR: NO_RESPONSE_FROM_PROJECTOR"
             except socket.timeout:
                 print("Warning: Projector timed out before responding.")
+                return False, "ERROR: RESPONSE_TIMEOUT"
             except Exception as e:
                 print(f"Error reading response from projector: {e}")
+                return False, f"ERROR: READ_RESPONSE_FAILED ({e})"
 
     except socket.timeout:
         print(f"Error: Connection to projector ({PROJECTOR_IP}:{PROJECTOR_PORT}) timed out.")
+        return False, "ERROR: CONNECTION_TIMEOUT"
     except ConnectionRefusedError:
         print(f"Error: Projector refused connection. It may be offline or already handling a connection.")
+        return False, "ERROR: CONNECTION_REFUSED_OFFLINE_OR_BUSY"
     except Exception as e:
         print(f"Error establishing connection to projector: {e}")
+        return False, f"ERROR: GENERAL_CONNECTION_ERROR ({e})"
 
 
 # ========================
@@ -95,31 +118,34 @@ def send_pjlink_command(command, password=PJLINK_PASSWORD):
 def handle_command(cmd):
     """
     Matches received text to PJLink commands.
+    Returns a tuple: (success: bool, error_message: str)
     """
     try:
         cmd = cmd.strip().upper()
 
         if cmd == "PROJECTORON":
             print("Turning projector ON...")
-            send_pjlink_command("%1POWR 1\r")
+            return send_pjlink_command("%1POWR 1\r")
 
         elif cmd == "PROJECTOROFF":
             print("Turning projector OFF...")
-            send_pjlink_command("%1POWR 0\r")
+            return send_pjlink_command("%1POWR 0\r")
 
         elif cmd == "PROJECTORSLEEP":
             print("Muting projector (sleep)...")
-            send_pjlink_command("%1AVMT 31\r")
+            return send_pjlink_command("%1AVMT 31\r")
 
         elif cmd == "PROJECTORNOTSLEEP":
             print("Unmuting projector (wake)...")
-            send_pjlink_command("%1AVMT 30\r")
+            return send_pjlink_command("%1AVMT 30\r")
 
         else:
             print(f"Unknown command received: {cmd}")
+            return False, "ERROR: UNKNOWN_COMMAND"
             
     except Exception as e:
         print(f"Error parsing or handling command '{cmd}': {e}")
+        return False, f"ERROR: INTERNAL_HANDLER_ERROR ({e})"
 
 
 # ========================
@@ -128,6 +154,7 @@ def handle_command(cmd):
 def start_command_listener():
     """
     Listens for incoming TCP commands with automatic, quiet reconnections.
+    Sends detailed error messages back to the client if the projector fails.
     """
     connection_active = False
 
@@ -162,14 +189,23 @@ def start_command_listener():
                                 
                                 if data:
                                     print(f"Received command: {data}")
-                                    handle_command(data)
+                                    
+                                    # Execute the command and capture success status and specific error message
+                                    success, message = handle_command(data)
+                                    
                                     try:
-                                        client_socket.sendall(b"OK\n")
+                                        # Send the specific outcome back to the client
+                                        if success:
+                                            client_socket.sendall(b"OK\n")
+                                        else:
+                                            # Send the detailed error message (e.g., "ERROR: CONNECTION_TIMEOUT\n")
+                                            error_response = f"{message}\n".encode()
+                                            client_socket.sendall(error_response)
                                     except Exception:
                                         pass # Ignore if client dropped before we could ACK
                                 else:
                                     try:
-                                        client_socket.sendall(b"NO COMMAND\n")
+                                        client_socket.sendall(b"ERROR: NO_COMMAND_PROVIDED\n")
                                     except Exception:
                                         pass
 
@@ -178,7 +214,7 @@ def start_command_listener():
                             except Exception as e:
                                 print(f"Error reading/processing client {addr}: {e}")
                                 try:
-                                    client_socket.sendall(b"ERROR\n")
+                                    client_socket.sendall(b"ERROR: CLIENT_COMMUNICATION_ERROR\n")
                                 except Exception:
                                     pass # Ignore broken pipe if client is already gone
                                 
