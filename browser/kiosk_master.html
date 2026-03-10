@@ -38,9 +38,11 @@
     <iframe id="main-frame"></iframe>
 
     <script>
-        // 1. Get the IP from the URL hash
-        const serverIp = window.location.hash.substring(1); 
-        const port = "80";
+        // 1. Get the IP from the URL hash (after the # symbol)
+        const hashData = window.location.hash.substring(1); 
+
+        // Split the string at the colon into an array and assign to variables
+        const [serverIp, port] = hashData.split(':');
 
         const frame = document.getElementById('main-frame');
         const statusScreen = document.getElementById('status-screen');
@@ -51,7 +53,7 @@
         let currentState = 'INIT'; 
         let checkLoopTimer; 
 
-        if (!serverIp) {
+        if (!serverIp || !port) {
             updateUI('CONFIG_ERROR');
         }
 
@@ -79,7 +81,7 @@
                     loader.style.display = "block"; // Keep loader spinning to show it's retrying
                 } else if (newState === 'CONFIG_ERROR') {
                     statusTitle.innerText = "Configuratiefout";
-                    statusDesc.innerText = "Geen IP-adres gevonden in de URL (#IP).";
+                    statusDesc.innerText = "Geen IP-adres of poortnummer gevonden in de URL (#IP:PORT).";
                     loader.style.display = "none";
                 }
             }
