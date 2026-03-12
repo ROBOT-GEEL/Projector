@@ -286,8 +286,8 @@ def count_people_event(data):
 
 if __name__ == '__main__':
     if args.debug:
-        print("\n=== DEBUG MODE ===", flush=True)
-        print(f"Using server URL: {args.server_url}", flush=True)
+        print("\n=== DEBUG MODE ===")
+        print(f"Using server URL: {args.server_url}")
         counts, err_code, raw_err = count_people(datetime.now())
         if err_code:
             print(f"Debug run failed: {err_code} - {raw_err}")
@@ -301,11 +301,11 @@ if __name__ == '__main__':
         while True:
             # Only announce the attempt if we aren't already in a silent failure loop
             if is_first_failure:
-                print(f'Attempting to connect to {args.server_url}...', flush=True)
+                print(f'Attempting to connect to {args.server_url}...')
                 
             try:
                 sio.connect(args.server_url)
-                print(f'Connection successful ({args.server_url})', flush=True)
+                print(f'Connection successful ({args.server_url})')
                 
                 # Reset the flag because we are connected. 
                 is_first_failure = True 
@@ -315,15 +315,15 @@ if __name__ == '__main__':
                 
                 # If we reach this exact line, sio.wait() finished naturally (server dropped)
                 if is_first_failure:
-                    print("Disconnected from server. Retrying...", flush=True)
-                    print(f"Network down. Retrying silently every {RETRY_DELAY} seconds...", flush=True)
+                    print("Disconnected from server. Retrying...")
+                    print(f"Network down. Retrying silently every {RETRY_DELAY} seconds...")
                     is_first_failure = False
                     
             except Exception as e:
                 # Catch connection failures (e.g., server offline)
                 if is_first_failure:
-                    print(f"Socket connection error: {e}", flush=True)
-                    print(f"Network down. Retrying silently every {RETRY_DELAY} seconds...", flush=True)
+                    print(f"Socket connection error: {e}")
+                    print(f"Network down. Retrying silently every {RETRY_DELAY} seconds...")
                     is_first_failure = False
                     
             finally:
