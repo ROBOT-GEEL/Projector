@@ -50,13 +50,16 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 env_path = SCRIPT_DIR.parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
+CONFIDENCE_THRESHOLD = float(os.getenv('CONFIDENCE_THRESHOLD', 0.2))
+IOU_THRESHOLD = float(os.getenv('IOU_THRESHOLD', 0.2))
+
+SERVER_IP = os.getenv('SERVER_IP', '192.168.137.100')
+SERVER_PORT = os.getenv('SERVER_PORT', '80')
+DEFAULT_SERVER = f"http://{SERVER_IP}:{SERVER_PORT}"
+
 # -------------------------------------------------------
 # CLI ARGUMENTS
 # -------------------------------------------------------
-
-SERVER_IP = os.getenv('SERVER_IP')
-SERVER_PORT = os.getenv('SERVER_PORT')
-DEFAULT_SERVER = f"http://{SERVER_IP}:{SERVER_PORT}"
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--cam-index", type=int, default=0, help="Camera index (default 0)")
@@ -74,7 +77,6 @@ args = parser.parse_args()
 ORIGINAL_DIR = os.path.join(str(SCRIPT_DIR), 'images/original')
 RESULTS_DIR = os.path.join(str(SCRIPT_DIR), 'images/result')
 
-# Wrap directory creation in try-except in case of permission/disk issues
 try:
     os.makedirs(ORIGINAL_DIR, exist_ok=True)
     os.makedirs(RESULTS_DIR, exist_ok=True)
@@ -100,7 +102,6 @@ ZONE_COLORS = {
 # ZONE LOADING
 # -------------------------------------------------------
 def load_zones(file_path):
-    # This will now raise exceptions instead of failing silently so the server knows
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Config file not found at {file_path}")
     
@@ -182,10 +183,9 @@ def count_people(timestamp):
         return zone_counts, err_code, raw_err
 
     # 2. Save original frame (Non-fatal if it fails)
-    try:
-        cv.imwrite(os.path.join(ORIGINAL_DIR, 'original.jpg'), frame)
-    except Exception as e:
-        print(f"Warning: {ERROR_CODES['ERR_FS_WRITE']} - {e}")
+    success = cv.imwrite(os.path.join(ORIGINAL_DIR, 'original.jpg'), frame)
+    if not success:
+        print(f"Warning: {ERROR_CODES['ERR_FS_WRITE']} - Failed to write original.jpg")
 
     # 3. Load Zones
     try:
@@ -196,9 +196,9 @@ def count_people(timestamp):
 
     # 4. Inference and Annotation
     try:
-        results = model(frame, imgsz=args.img_size, iou=0.2, verbose=False)[0] 
+        results = model(frame, imgsz=args.img_size, iou=IOU_THRESHOLD, verbose=False)[0] 
         detections = sv.Detections.from_ultralytics(results)
-        detections = detections[(detections.class_id == 0) & (detections.confidence > 0.2)]
+        detections = detections[(detections.class_id == 0) & (detections.confidence > CONFIDENCE_THRESHOLD)]
 
         annotated_frame = frame.copy()
         for zone_name, polygon in zones.items():
@@ -224,10 +224,9 @@ def count_people(timestamp):
         return zone_counts, "ERR_YOLO_INFERENCE", str(e)
 
     # 5. Save annotated frame (Non-fatal if it fails)
-    try:
-        cv.imwrite(os.path.join(RESULTS_DIR, 'result.jpg'), annotated_frame)
-    except Exception as e:
-        print(f"Warning: {ERROR_CODES['ERR_FS_WRITE']} - {e}")
+    success = cv.imwrite(os.path.join(RESULTS_DIR, 'result.jpg'), annotated_frame)
+    if not success:
+        print(f"Warning: {ERROR_CODES['ERR_FS_WRITE']} - Failed to write result.jpg")
         
     return zone_counts, None, None
 
