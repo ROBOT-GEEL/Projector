@@ -9,7 +9,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # -------------------------------------------------------
-# PATH CONFIGURATION (RELATIVE TO SCRIPT)
+# PATH CONFIGURATION
 # -------------------------------------------------------
 SCRIPT_DIR = Path(__file__).resolve().parent
 ENV_PATH = SCRIPT_DIR.parent / ".env"
@@ -51,11 +51,14 @@ def take_picture():
         # 1. Acquire the IPC hardware lock
         try:
             lock_fd = open(lock_file_path, 'w')
-            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             print("Flask: IPC Lock acquired. Opening camera...")
+        except BlockingIOError:
+            print("ERROR: Camera is currently busy counting people.")
+            return jsonify({"status": "error", "message": "Camera is busy. Please try again."}), 503
         except Exception as e:
             print(f"ERROR: Could not acquire camera lock: {e}")
-            return jsonify({"status": "error", "message": "Camera is busy or locked"}), 503
+            return jsonify({"status": "error", "message": "Camera is busy or locked"}), 500
 
         # 2. Open Camera
         cap = cv2.VideoCapture(0)
