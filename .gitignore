@@ -1,4 +1,4 @@
-.env# AI modelbestanden
+*.env
 *.pt
 *.pth
 *.onnx
