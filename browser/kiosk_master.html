@@ -6,39 +6,67 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kiosk Master</title>
     <style>
+        /* Black out the entire physical screen to hide projection spills */
         body, html { 
-            margin: 0; padding: 0; width: 100%; height: 100%; 
-            overflow: hidden; background: #121212; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; padding: 0; 
+            width: 100%; height: 100%; 
+            background: #000; 
+            overflow: hidden; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
         }
+
+        /* Create a safe zone */
+        #safe-zone {
+            position: absolute;
+            
+            /* Set the size of your visible physical area */
+            width: 100%;
+            height: 57%;
+            
+            /* Position it to perfectly align with the physical screen */
+            top: 20%;
+            left: 0%;
+            
+            background: #121212; 
+            overflow: hidden; 
+        }
+
+        /* The UI will fill the entire safe zone */
+        #status-screen { 
+            display: flex; flex-direction: column; justify-content: center; 
+            align-items: center; width: 100%; height: 100%; 
+            color: white; text-align: center; 
+        }
+
+        /* The iFrame will fill the entire safe zone*/
         iframe { 
+            position: absolute; top: 0; left: 0; 
             width: 100%; height: 100%; border: none; 
             display: none; background: white; 
         }
-        #status-screen { 
-            display: flex; flex-direction: column; justify-content: center; 
-            align-items: center; width: 100%; height: 100%; color: white; text-align: center; 
-        }
-        h1 { font-size: 5em; margin-bottom: 10px; color: #e74c3c; }
-        p { font-size: 2.5em; opacity: 0.8; }
+
+        h1 { font-size: 7em; margin-bottom: 10px; color: #e74c3c; }
+        p { font-size: 4em; opacity: 1; }
         .loader {
             border: 5px solid #333; border-top: 5px solid #3498db; border-radius: 50%;
-            width: 50px; height: 50px; animation: spin 1s linear infinite; margin-top: 30px;
+            width: 80px; height: 80px; animation: spin 1s linear infinite; margin-top: 30px;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-    <div id="status-screen">
-        <h1 id="status-title">Verbinden...</h1>
-        <p id="status-desc">Status wordt gecontroleerd.</p>
-        <div class="loader" id="loader"></div>
+    <div id="safe-zone">
+        <div id="status-screen">
+            <h1 id="status-title">Verbinden...</h1>
+            <p id="status-desc">Status wordt gecontroleerd.</p>
+            <div class="loader" id="loader"></div>
+        </div>
+        <iframe id="main-frame"></iframe>
     </div>
 
-    <iframe id="main-frame"></iframe>
-
     <script>
-        // 1. Get the IP from the URL hash (after the # symbol)
+        // Get the IP from the URL hash (after the # symbol)
         const hashData = window.location.hash.substring(1); 
 
         // Split the string at the colon into an array and assign to variables
@@ -57,6 +85,7 @@
             updateUI('CONFIG_ERROR');
         }
 
+        // URL construction
         const SERVER_URL = `http://${serverIp}:${port}/projector`;
 
         function updateUI(newState) {
@@ -113,7 +142,6 @@
                 
             } catch (error) {
                 // Fetch failed (network drop, server down, or timeout). 
-                // Treat it all as one generic error.
                 clearTimeout(fetchTimeout);
                 updateUI('ERROR');
                 scheduleNextCheck(3000); // Retry in 3 seconds
