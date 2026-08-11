@@ -1,0 +1,51 @@
+[Unit]
+Description=Opens chromium in kiosk mode
+After=graphical.target
+
+# Limit restarts to 5 times within 60 seconds to prevent CPU locking
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+User=projector
+Group=projector
+
+# Memory and crash management
+LimitMEMLOCK=infinity
+MemoryMax=2G
+OOMPolicy=restart
+
+# Explicitly set the home directory to fix the SELinux/Snap warning
+Environment=HOME=/home/projector
+EnvironmentFile=/home/projector/Documents/.env
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/projector/.Xauthority
+
+ExecStartPre=-/usr/bin/killall -9 chromium
+ExecStart=/snap/bin/chromium \
+  --kiosk \
+  --user-data-dir=/home/projector/.config/chromium-kiosk \
+  --no-first-run \
+  --no-default-browser-check \
+  --disable-infobars \
+  --disable-session-crashed-bubble \
+  --disable-save-password-bubble \
+  --disable-extensions \
+  --incognito \
+  --overscroll-history-navigation=0 \
+  --check-for-update-interval=31536000 \
+  --password-store=basic \
+  --noerrdialogs \
+  --disable-features=Translate \
+  --disable-notifications \
+  --disk-cache-dir=/dev/null \
+  --disable-crash-reporter \
+  --disable-dev-shm-usage \
+  file:///home/projector/Documents/browser/kiosk_master.html#${SERVER_IP}:${SERVER_PORT}
+
+Restart=always
+RestartSec=5
+KillMode=mixed
+
+[Install]
+WantedBy=graphical.target

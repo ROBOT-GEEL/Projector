@@ -1,0 +1,23 @@
+[Unit]
+Description=Zone Configuration Service
+
+# Make sure that the service keeps trying
+StartLimitIntervalSec=0
+
+[Service]
+User=projector
+WorkingDirectory=/home/projector/Documents/zone-configuration
+ExecStart=/home/projector/Documents/.venv/bin/python3 zone-configuration.py
+
+# Always restart the script when it crashes
+Restart=always
+RestartSec=10
+
+# Logging
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+

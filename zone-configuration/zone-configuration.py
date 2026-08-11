@@ -137,6 +137,26 @@ def save_zones():
     except Exception as e:
         print(f"Error saving zones: {e}")
         return jsonify({"status": "error", "message": "Could not save zones"}), 500
+        
+#Toevoeging Matthijs
+@app.route('/get_zones', methods=['GET'])
+def get_zones():
+    try:
+        # Controleer eerst of het configuratiebestand al bestaat
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, 'r') as f:
+                zones_data = json.load(f)
+                return jsonify(zones_data)
+        else:
+            # Als er nog nooit iets is opgeslagen, stuur dan lege zones terug
+            return jsonify({"A": [], "B": [], "C": []})
+            
+    except PermissionError:
+        print("ERROR: Permission denied when reading zones config")
+        return jsonify({"status": "error", "message": "Permission denied reading config"}), 500
+    except Exception as e:
+        print(f"Error reading zones: {e}")
+        return jsonify({"status": "error", "message": "Could not read zones"}), 500
     
 
 # -------------------------------------------------------

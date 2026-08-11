@@ -26,6 +26,12 @@ LISTEN_IP = "0.0.0.0"
 LISTEN_PORT = int(os.getenv('LISTEN_PORT', 5050))
 
 # ========================
+# Projector status
+# ========================
+
+projectorStatus = "None"
+
+# ========================
 # Function: Send PJLink Command
 # ========================
 def send_pjlink_command(command, password=PJLINK_PASSWORD):
@@ -60,7 +66,7 @@ def send_pjlink_command(command, password=PJLINK_PASSWORD):
                     except Exception as e:
                         print(f"Warning: Authentication hashing error: {e}")
                 elif auth_required and not password:
-                    return False, "ERROR: AUTH_REQUIRED_BUT_NO_PASSWORD_SET"
+                    return False, "ERROR: AUTH_REQUIRED_BUT_NO_PASSWORD_SET"   
 
             # 3. Send the command safely
             try:
@@ -120,22 +126,39 @@ def handle_command(cmd):
     Matches received text to PJLink commands.
     Returns a tuple: (success: bool, error_message: str)
     """
+    
+    global projectorStatus
+    
     try:
         cmd = cmd.strip().upper()
 
         if cmd == "PROJECTORON":
             print("Turning projector ON...")
+            #projectorStatus = "ON"
             return send_pjlink_command("%1POWR 1\r")
 
         elif cmd == "PROJECTOROFF":
             print("Turning projector OFF...")
+            #projectorStatus = "OFF"
             return send_pjlink_command("%1POWR 0\r")
 
         elif cmd == "PROJECTORSLEEP":
+            #if (projectorStatus != "ON"):
+                #print("Projector stond uit, zet eerst terug aan")
+                #send_pjlink_command("%1POWR 1\r")
+                #projectorStatus = "ON"
+                #sleep(30)
+        
             print("Muting projector (sleep)...")
             return send_pjlink_command("%1AVMT 31\r")
 
         elif cmd == "PROJECTORNOTSLEEP":
+            #if (projectorStatus != "ON"):
+                #print("Projector stond uit, zet eerst terug aan")
+                #send_pjlink_command("%1POWR 1\r")
+                #projectorStatus = "ON"
+                #sleep(30)
+            
             print("Unmuting projector (wake)...")
             return send_pjlink_command("%1AVMT 30\r")
 
